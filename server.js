@@ -1,69 +1,49 @@
 const express = require("express");
-const path = require("path");
 const fs = require("fs");
-const util = require("util");
-
-const readFileAsync = util.promisify(fs.readFile);
-const writeFileAsync = util.promisify(fs.writeFile);
+const notes = require("./db/db.json");
+const path = require("path");
+const uuid = require("uuid");
+const {DH_CHECK_P_NOT_SAFE_PRIME} = require("constants");
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+var PORT = process.env.PORT || 8080;
 
 app.use(express.urlencoded({ extended: true}));
 app.use(express.json());
+app.use(express.static("public"));
 
-app.use(express.static("./public"));
-
-app.get("/api/notes", function(req,res) {
-    readFileAsync("./db/db.json", "utf8").then(function(data) {
-        notes = [].concat(JSON.parse(data))
-        res.json(notes);
-    })
+app.get("/api/notes", (req, res) => {
+    res.sendFile(path.join(__dirname, "/db/db.json"))
 });
 
-app.post("/api/notes", function(req, res) {
-    const note = req.body;
-    readFileAsync("./db/db.json", "utf8").then(function(data) {
-        const notes = [].concat(JSON.parse(data));
-        note.id = notes.lenght + 1
-        notes.push(note);
-        return notes
-    }).then(function(notes) {
-        writeFileAsync("./db/db.json", JSON.stringify(notes))
-        res.json(note);
-    })
+app.post("/api/notes", (req, res) => {
+    const notes = JSON.parse(fs.readFileSync("./db/db.json"));
+    const newNotes = req.body;
+    newNotes.id = uuid.v4();
+    notes.push(newNotes);
+    fs.writeFileSync("./db/db.json", JSON.stringify(notes))
+    res.json(notes);
 })
 
-app.delete("/api/notes/:id", function(req, res) {
-    const idToDelete = parseInt(req.params.id);
-    readFileAsync("./db/db.json", "utf8").then(function(data) {
-        const notes =[].concat(JSON.parse(data));
-        const newNotesData = []
-        for(let i = 0; i < notes.lenght; i++) {
-            if(idToDelete !== notes[i].id) {
-                newNotesData.push(notes[i])
-            }
-        }
-        return newNotesData
-    }).then(function(notes) {
-        writeFileAsync("./db/db.json", JSON.stringify(notes))
-        res.send("saved")
-    })
+app.delete("/api/notes/:id", (req, res) => {
+    const notes = JSON.parse(fs.readFileSync("./db/db.json"));
+    const delNote = notes.filter((rmvNote) => rmvNote.id !== req.params.id);
+    fs.writeFileSync("./db/db.json", JSON.stringify(delNote));
+    res.json(delNote);
+})
+
+
+app.get("/", function(req, res) {
+    res.sendFile(path.join(__dirname, "/public/index.html"));
 });
 
 app.get("/notes", function(req, res) {
-    res.sendFile(path.join(__dirname, "./public/notes.html"));
+    res.sendFile(path.join(__dirname, "/public/notes.html"));
 });
 
-app.get("/", function(req, res) {
-    res.sendFile(path.join(__dirname, "./public/index.html"));
+app.listen(PORT, function(){
+    console.log("APP listening on PORT: " + PORT);
 });
 
-app.get("*", function(req, res) {
-    res.sendFile(path.join(__dirname, "./public/index.html"));
-});
 
-app.listen(PORT, function() {
-    console.log("App listening on PORT" + PORT);
-});
 
